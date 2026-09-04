@@ -59,23 +59,20 @@ async def schedule_host_migration_if_still_offline(room_id: str, secret_token: s
     try:
         state_json = await redis_client.get_room_state(room_id)
         if not state_json:
-            await redis_client.client.delete(f"room:{{{room_id}}}:lock")
             return
 
         room = GameRoom.model_validate_json(state_json)
         player = next((p for p in room.players.values() if p.secret_token == secret_token), None)
 
         if not player or player.is_online or not player.is_host:
-            await redis_client.client.delete(f"room:{{{room_id}}}:lock")
             return
 
         migrated = await game_service.handle_host_migration(room, redis_client)
         saved = await redis_client.release_lock_and_update(room_id, worker_uuid, room.model_dump_json())
         if saved and migrated:
             await manager.broadcast_room_view(room)
-    except Exception:
-        await redis_client.client.delete(f"room:{{{room_id}}}:lock")
-        raise
+    finally:
+        await redis_client.release_lock(room_id, worker_uuid)
 
 router = APIRouter()
 
@@ -274,8 +271,7 @@ async def handle_turn_timeout(room_id: str, round_number: int, turn_index: int) 
 
         if new_status is None:
             # La notificación llegó tarde (turno ya resuelto por otra vía);
-            # no hay nada que mutar. Liberamos el cerrojo sin escribir estado.
-            await redis_client.client.delete(f"room:{{{room_id}}}:lock")
+            # no hay nada que mutar. El `finally` libera el cerrojo.
             return
 
         if new_status == "playing":
@@ -284,9 +280,8 @@ async def handle_turn_timeout(room_id: str, round_number: int, turn_index: int) 
         saved = await redis_client.release_lock_and_update(room_id, worker_uuid, room.model_dump_json())
         if saved:
             await manager.broadcast_room_view(room)
-    except Exception:
-        await redis_client.client.delete(f"room:{{{room_id}}}:lock")
-        raise
+    finally:
+        await redis_client.release_lock(room_id, worker_uuid)
 
 @router.websocket("/ws/room/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
@@ -577,18 +572,23 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                         # En Fase 5 esto se enviaría a Redis Streams (XADD)
                         # Por ahora en Fase 1 (1 nodo), lo emitimos localmente:
                         await manager.broadcast_room_view(room)
-                else:
-                    # Liberamos explícitamente si no hubo mutación
-                    await redis_client.client.delete(f"room:{{{room_id}}}:lock")
 
                 if should_close_after:
                     await websocket.close(code=1000, reason="Left room")
                     break
 
-            except Exception as e:
-                # Liberación segura en caso de error interno
-                await redis_client.client.delete(f"room:{{{room_id}}}:lock")
-                raise e
+            finally:
+                # Única salida del cerrojo, y tiene que ser un `finally`: los
+                # rechazos de validación (`continue`), los cierres del socket
+                # (`break`) y las excepciones salían todos de la sección
+                # crítica sin soltarlo, dejándolo retenido hasta agotar su PX
+                # de 5 s. En esa ventana el timeout de turno no lograba
+                # adquirirlo, se rendía en silencio, y como su clave TTL ya
+                # había expirado el turno se quedaba sin reloj para siempre.
+                #
+                # Es idempotente: si `release_lock_and_update` ya borró el
+                # cerrojo, o si expiró y lo tiene otro worker, no hace nada.
+                await redis_client.release_lock(room_id, worker_uuid)
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket, room_id)

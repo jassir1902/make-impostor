@@ -90,6 +90,19 @@ else
 end
 """
 
+# Liberación del cerrojo SIN escribir estado, con la misma comprobación de
+# fencing que LUA_UPDATE_AND_UNLOCK. Un `DEL` incondicional aquí sería un
+# agujero: si nuestro cerrojo ya expiró por el PX de 5 s y otro worker lo
+# adquirió, borraríamos el suyo y quedarían dos workers dentro de la misma
+# sección crítica (02_architecture.md, sección 4.3).
+LUA_RELEASE_LOCK = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+"""
+
 async def create_room_atomic(room_id: str, state_json: str) -> bool:
     """
     Intenta crear la sala. Retorna True si tuvo éxito, False si hubo colisión (NX).
@@ -112,6 +125,7 @@ async def acquire_lock(room_id: str, worker_uuid: str) -> bool:
     return bool(result)
 
 _update_and_unlock_script = client.register_script(LUA_UPDATE_AND_UNLOCK)
+_release_lock_script = client.register_script(LUA_RELEASE_LOCK)
 
 
 async def release_lock_and_update(room_id: str, worker_uuid: str, new_state_json: str) -> bool:
@@ -122,6 +136,24 @@ async def release_lock_and_update(room_id: str, worker_uuid: str, new_state_json
     state_key = f"room:{{{room_id}}}:state"
 
     result = await _update_and_unlock_script(keys=[lock_key, state_key], args=[worker_uuid, new_state_json])
+    return bool(result)
+
+
+async def release_lock(room_id: str, worker_uuid: str) -> bool:
+    """
+    Libera el cerrojo sin escribir estado, solo si sigue siendo nuestro.
+
+    Es la liberación por defecto de cualquier camino que NO mute la sala:
+    rechazos de validación, cierres del socket y rutas de excepción. Es
+    idempotente y segura de llamar aunque `release_lock_and_update` ya
+    haya borrado el cerrojo (el GET devuelve nil y no coincide), lo que
+    permite invocarla desde un `finally` sin condicionar por qué camino
+    salió la sección crítica.
+
+    Retorna True solo si esta llamada fue la que borró el cerrojo.
+    """
+    lock_key = f"room:{{{room_id}}}:lock"
+    result = await _release_lock_script(keys=[lock_key], args=[worker_uuid])
     return bool(result)
 
 async def set_turn_timeout(room_id: str, round_number: int, turn_index: int, ttl_seconds: int = 20):
