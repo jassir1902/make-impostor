@@ -24,6 +24,20 @@ RATE_LIMIT_WINDOW = 1.0    # Por segundo
 LOCK_ACQUIRE_MAX_ATTEMPTS = 6
 LOCK_ACQUIRE_RETRY_DELAY = 0.08  # segundos
 
+# TTL con el que se vuelve a armar el reloj de un turno cuando su
+# notificación de expiración no consigue el cerrojo. La notificación de
+# keyspace se entrega UNA sola vez y la clave que la disparó ya no existe:
+# sin este re-armado, perder la carrera por el cerrojo deja ese turno sin
+# reloj para siempre, y la partida se cuelga esperando a un jugador que
+# quizá ni siquiera está conectado.
+#
+# No le regala tiempo al jugador. La clave codifica ronda e índice de
+# turno, y `resolve_turn_timeout` penaliza en cuanto gana el cerrojo
+# comparando contra el turno actual; si el jugador envió su palabra
+# mientras tanto, el reintento se descarta por obsoleto. Lo que se
+# reintenta es la notificación, no el turno.
+TURN_TIMEOUT_RETRY_SECONDS = 2
+
 
 async def acquire_lock_with_retry(room_id: str, worker_uuid: str) -> bool:
     for attempt in range(LOCK_ACQUIRE_MAX_ATTEMPTS):
@@ -259,6 +273,13 @@ async def handle_turn_timeout(room_id: str, round_number: int, turn_index: int) 
     """
     worker_uuid = str(uuid.uuid4())
     if not await acquire_lock_with_retry(room_id, worker_uuid):
+        # Rendirse aquí perdía la notificación de forma definitiva: la
+        # clave que la disparó ya expiró y nadie más la va a rearmar. Se
+        # vuelve a armar con un TTL corto para reintentar la carrera por
+        # el cerrojo (ver TURN_TIMEOUT_RETRY_SECONDS).
+        await redis_client.set_turn_timeout(
+            room_id, round_number, turn_index, TURN_TIMEOUT_RETRY_SECONDS
+        )
         return
 
     try:
