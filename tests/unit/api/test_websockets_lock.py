@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.api import websockets as ws_module
 from app.core import redis_client
-from app.models.game import GameRoom, Player
+from app.models.game import GameRoom, Player, RoundLog
 
 ROOM_ID = "ABCD"
 LOCK_KEY = f"room:{{{ROOM_ID}}}:lock"
@@ -258,4 +258,90 @@ class TestEndpointReleasesLock:
             error = ws.receive_json()
 
         assert error["payload"]["code"] == "UNAUTHORIZED_ACTION"
+        assert LOCK_KEY not in fake_redis.store
+
+
+# --- Re-armado del reloj de turno --------------------------------------------
+
+
+def timeout_key(round_number: int, turn_index: int) -> str:
+    return f"room:{{{ROOM_ID}}}:timeout:{round_number}:{turn_index}"
+
+
+@pytest.fixture
+def no_lock_retries(monkeypatch):
+    """
+    Los 6 reintentos con 80 ms de espera son correctos en producción pero
+    sobran aquí: estas pruebas afirman sobre qué pasa DESPUÉS de agotarlos.
+    """
+    monkeypatch.setattr(ws_module, "LOCK_ACQUIRE_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr(ws_module, "LOCK_ACQUIRE_RETRY_DELAY", 0)
+
+
+def playing_room() -> tuple[GameRoom, list[str]]:
+    room = GameRoom(id=ROOM_ID, status="playing", round_number=1)
+    for name in ("Ana", "Beto", "Caro"):
+        player = Player(name=name)
+        room.players[player.id] = player
+    ids = list(room.players.keys())
+    room.turn_order = ids
+    room.current_turn_index = 0
+    # `start_game` siempre deja abierto el log de la ronda; sin él
+    # `record_player_word` no registra nada y la penalización se pierde.
+    room.current_round_log = RoundLog(round_number=1)
+    return room, ids
+
+
+class TestTurnTimeoutRearming:
+    @pytest.mark.asyncio
+    async def test_rearms_when_lock_is_held_by_another_worker(
+        self, fake_redis, no_lock_retries
+    ):
+        """
+        Prueba de regresión del hallazgo 1. La notificación de keyspace se
+        entrega una sola vez y su clave ya expiró: si el handler se rinde
+        sin rearmarla, ese turno queda sin reloj de forma permanente y la
+        partida se cuelga esperando a un jugador que puede estar caído.
+        """
+        room, _ = playing_room()
+        seed_room(fake_redis, room)
+        fake_redis.store[LOCK_KEY] = "otro-worker"
+
+        await ws_module.handle_turn_timeout(ROOM_ID, 1, 0)
+
+        assert timeout_key(1, 0) in fake_redis.store
+        # Y no le robamos el cerrojo a quien lo tiene.
+        assert fake_redis.store[LOCK_KEY] == "otro-worker"
+
+    @pytest.mark.asyncio
+    async def test_does_not_rearm_when_notification_is_stale(
+        self, fake_redis, no_lock_retries
+    ):
+        """
+        Si el cerrojo estaba libre, el handler entra y `resolve_turn_timeout`
+        descarta la notificación por obsoleta (el turno ya avanzó). Ahí no
+        hay nada que reintentar: rearmar sería dejar un reloj colgando de un
+        turno que ya pasó.
+        """
+        room, _ = playing_room()
+        room.current_turn_index = 2  # el turno 0 ya se resolvió hace rato
+        seed_room(fake_redis, room)
+
+        await ws_module.handle_turn_timeout(ROOM_ID, 1, 0)
+
+        assert timeout_key(1, 0) not in fake_redis.store
+        assert LOCK_KEY not in fake_redis.store
+
+    @pytest.mark.asyncio
+    async def test_applies_penalty_and_arms_next_turn(self, fake_redis, no_lock_retries):
+        """Camino feliz: se penaliza al jugador y arranca el reloj del siguiente."""
+        room, ids = playing_room()
+        seed_room(fake_redis, room)
+
+        await ws_module.handle_turn_timeout(ROOM_ID, 1, 0)
+
+        saved = read_room(fake_redis)
+        assert saved.current_round_log.words_spoken[ids[0]].timed_out is True
+        assert saved.current_turn_index == 1
+        assert timeout_key(1, 1) in fake_redis.store
         assert LOCK_KEY not in fake_redis.store
