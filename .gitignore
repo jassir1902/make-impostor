@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# Entornos: el archivo real nunca se versiona; las plantillas *.example sí.
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
