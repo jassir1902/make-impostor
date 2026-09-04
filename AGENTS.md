@@ -32,10 +32,28 @@ pipelines de IA y RAG. Eso cambia cómo se trabaja aquí — ver la sección 8.
 no autoriza los siguientes.** Nunca ejecutar `git commit`, `git push` ni
 `gh pr create` sin que el autor lo pida en ese momento.
 
-Reescribir historia (`--amend`, `rebase`, `reset`, `--force-with-lease`) se
-pide aparte y se explica antes. `--force` a secas, nunca.
-
 «Arranca con X» autoriza **planificar**, no comitear.
+
+### Reescritura de historia
+
+Este proyecto trabaja con **rebase** (sección 3), así que reescribir historia
+es parte del flujo normal y no puede requerir un permiso cada vez. La línea que
+decide no es el comando, es **si los commits ya se publicaron**:
+
+| Situación | Permiso |
+|---|---|
+| `rebase`, `--amend` o `reset` sobre una rama **local sin publicar** | **Preautorizado** |
+| Lo mismo sobre una rama **ya publicada** (implica `--force-with-lease`) | **Se pide cada vez, y se explica antes** |
+| Cualquier reescritura de `main` | **Prohibido** |
+| `git push --force` a secas | **Prohibido** |
+
+El motivo del corte: mientras los commits solo existan en la máquina local,
+reescribirlos no puede destruir trabajo de nadie. En cuanto están publicados,
+un rebase cambia hashes que otros (u otra máquina, o un PR abierto) ya tienen.
+
+`--force-with-lease` sigue pidiendo permiso aunque sea mucho más seguro que
+`--force` —falla si alguien empujó algo que no has visto— porque sigue
+reescribiendo lo que ya está publicado.
 
 ## 3. Ramas
 
@@ -51,8 +69,35 @@ Tipos: `feature/`, `fix/`, `test/`, `ops/`, `docs/`.
 El `MI-<número>` es la tarjeta de Jira (sección 6). Si todavía no existe, se
 crea antes de la rama.
 
-`main` es producción y coincide con lo desplegado. `develop` es integración.
-Ver `docs/06_devops_and_ci_cd.md` §2.
+**Las ramas salen de `main` y vuelven a `main` vía PR.** No hay `develop`: con
+un solo desarrollador no hay integración en paralelo que estabilizar, y una
+rama intermedia solo añadiría un rebase más.
+
+### Historia lineal
+
+`main` no lleva commits de merge. Dos reglas:
+
+- **Sincronizar** con `main` es siempre `git pull --rebase`, nunca un merge.
+  Un commit de merge de sincronización no aporta contenido y ensucia el
+  historial.
+- **Integrar** un PR es siempre *Rebase and merge*. Los ajustes del repositorio
+  en GitHub tienen desactivadas las otras dos opciones para que no se pueda
+  hacer por accidente.
+
+**Nunca *Squash and merge*.** Aquí las series de commits son deliberadas —un
+commit por defecto corregido, con su porqué en el cuerpo— y aplastarlas en uno
+solo tira ese trabajo. *Squash* sirve para ramas de quince commits de «wip»;
+no es el caso.
+
+### Referencias estables
+
+Bajo rebase, **un hash de commit es desechable**: cualquier sincronización lo
+reescribe. Nunca citar hashes en documentación versionada (ADRs, `docs/`,
+descripciones de tarjetas). El identificador estable de un trabajo es su
+tarjeta de Jira, que además lleva el contexto que un hash no tiene.
+
+Citar un hash está bien en un mensaje de commit o en un comentario de PR, que
+son efímeros por naturaleza.
 
 ## 4. Antes de cada commit
 

@@ -2,12 +2,11 @@
 
 - **Estado:** Aceptado
 - **Fecha:** 2026-09-04
-- **Relacionado:** `docs/02_architecture.md` §4.3, `docs/04_roadmap_and_phases.md` (Fase 1), `docs/07_testing_and_qa_strategy.md` §4.1
+- **Relacionado:** MI-2, `docs/02_architecture.md` §4.3, `docs/04_roadmap_and_phases.md` (Fase 1), `docs/07_testing_and_qa_strategy.md` §4.1
 
 > ADR rescatado. La decisión se tomó al construir la Fase 1 y nunca se
 > registró; se documenta ahora, al arreglar dos defectos derivados de ella
-> (commits `b7c468a` y `2df216a`). Se escribe con el contexto de entonces, no
-> con el de hoy.
+> (MI-2). Se escribe con el contexto de entonces, no con el de hoy.
 
 ## Contexto
 
@@ -116,12 +115,12 @@ ambas:
 - *Liberar el cerrojo en todos los caminos de salida.* La sección crítica del
   endpoint tenía trece `continue` de rechazo y tres `break` de cierre que
   salían sin soltarlo, dejándolo retenido los 5 s completos. Corregido con un
-  `finally` (commit `b7c468a`). **La liberación va en un `finally`, nunca al
-  final del camino feliz.**
+  `finally`. **La liberación va en un `finally`, nunca al final del camino
+  feliz.**
 - *No perder un evento que solo se entrega una vez.* La notificación de
   keyspace llega una sola vez y su clave ya expiró; si el handler se rendía al
   no conseguir el cerrojo, ese turno quedaba sin reloj para siempre. Corregido
-  rearmando el TTL (commit `2df216a`).
+  rearmando el TTL. Ambos arreglos van en MI-2.
 
 **Pendiente.** La prueba que fuerza la colisión real contra un Redis de verdad
 (`07_testing_and_qa_strategy.md` §4.1) sigue sin escribirse. Las pruebas

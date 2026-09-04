@@ -24,17 +24,54 @@ Caddy actúa como el único punto de entrada público. Sus responsabilidades exc
 - Redirigir el tráfico HTTP a HTTPS de forma automática.
 - Interceptar las conexiones seguras y enrutarlas internamente al puerto expuesto por el contenedor de FastAPI, facilitando tanto el tráfico REST (`https://`) como la mejora (_upgrade_) a WebSockets (`wss://`).
 
-## 2. Gestión del Código Fuente (Git Flow Simplificado)
+## 2. Gestión del Código Fuente (Historia Lineal con Rebase)
 
-Para mantener el rigor en un entorno de desarrollo individual, se adopta un modelo de ramas (branching) estricto que emula un entorno de equipo corporativo.
+✅ Implementado
 
-- **`main`:** Rama de producción. El código aquí es inmutable, está 100% probado y coincide exactamente con lo que se está ejecutando en el servidor VPS. Nunca se sube código directamente a esta rama.
-- **`develop`:** Rama de integración. Contiene el código listo para la siguiente versión.
-- **Ramas Efímeras (Trabajo diario):**
-  - `feature/*`: Para nuevas funcionalidades (ej. `feature/websocket-auth`).
-  - `fix/*`: Para corregir errores en desarrollo o producción.
-  - `test/*`: Para aislar la escritura de pruebas automatizadas.
-  - `ops/*`: Para actualizaciones de infraestructura, Dockerfiles o flujos de GitHub Actions.
+El modelo es de **tronco único con historia lineal**: las ramas de trabajo salen
+de `main` y vuelven a `main` mediante un _Pull Request_.
+
+- **`main`:** Rama de producción. Coincide exactamente con lo desplegado en el
+  VPS. Nunca se sube código directamente a ella, y nunca se reescribe su
+  historia.
+- **Ramas efímeras:** una por tarjeta de Jira, con el formato
+  `<tipo>/MI-<número>-<descripción-corta>`.
+  - `feature/*`: nuevas funcionalidades (ej. `feature/MI-14-websocket-auth`).
+  - `fix/*`: corrección de errores.
+  - `test/*`: escritura aislada de pruebas automatizadas.
+  - `ops/*`: infraestructura, Dockerfiles o flujos de GitHub Actions.
+  - `docs/*`: cambios exclusivos de documentación.
+
+**No existe `develop`.** El diseño original la incluía para emular un entorno de
+equipo, pero con un único desarrollador no hay integración en paralelo que
+estabilizar ni versiones que preparar: la rama solo añadía un rebase más y una
+referencia extra que mantener sincronizada. Se descarta a favor del tronco
+único.
+
+### Política de integración
+
+| Operación | Cómo |
+|---|---|
+| Poner una rama al día con `main` | `git pull --rebase`. Nunca un merge de sincronización |
+| Integrar un PR | _Rebase and merge_ |
+| Aplastar una rama en un commit | **Prohibido** |
+| Commits de merge en `main` | **Prohibido** |
+
+Los ajustes del repositorio en GitHub tienen desactivadas _Create a merge
+commit_ y _Squash and merge_, de modo que la política no dependa de recordar
+cuál botón pulsar.
+
+_Squash_ queda descartado porque en este proyecto las series de commits son
+deliberadas: un commit por defecto corregido, con el porqué en el cuerpo.
+Aplastarlas destruiría precisamente lo que el historial aporta.
+
+### Consecuencia: los hashes son desechables
+
+Un rebase reescribe los commits, así que sus hashes cambian aunque el contenido
+sea idéntico. **No se citan hashes en documentación versionada** — ADRs,
+`docs/`, descripciones de tarjetas. El identificador estable de un trabajo es su
+tarjeta de Jira. En mensajes de commit y comentarios de PR sí es válido, porque
+son efímeros.
 
 ## 3. Convención de Commits (Semantic Commits)
 
@@ -58,7 +95,7 @@ La automatización de la calidad y la entrega se delega a GitHub Actions, dividi
 
 ### 4.1 Flujo de Integración Continua (CI)
 
-**Gatillo:** Creación o actualización de un _Pull Request_ hacia las ramas `develop` y `main`.
+**Gatillo:** Creación o actualización de un _Pull Request_ hacia `main`.
 **Pasos:**
 
 1. Inicializar el entorno de Python.

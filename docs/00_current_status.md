@@ -43,7 +43,7 @@ Hallazgos de la auditoría del 2026-09-04. Los dos primeros ya se arreglaron.
 
 | # | Defecto | Estado |
 |---|---|---|
-| 1 | El cerrojo se fugaba en los 17 caminos de salida, y la liberación no comprobaba el token | ✅ `b7c468a`, `2df216a` |
+| 1 | El cerrojo se fugaba en los 17 caminos de salida, y la liberación no comprobaba el token | ✅ MI-2 |
 | 4 | La fase `voting` no tiene reloj: un jugador vivo que se desconecta sin salir la congela para siempre | 📋 **Bloqueado por decisión de negocio** |
 | 5 | `leave_room` durante `voting` no vuelve a evaluar el umbral de votos, y el voto de quien se fue sigue contando | 📋 Pendiente |
 
