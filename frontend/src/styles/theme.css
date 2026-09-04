@@ -1,0 +1,36 @@
+/* src/styles/theme.css
+ *
+ * ADVERTENCIA sobre @import: por la especificación CSS, un @import DEBE
+ * ser la primera regla del archivo (solo @charset puede precederlo). Si tu
+ * globals.css ya empieza con las directivas de Tailwind (@tailwind base;
+ * o @import "tailwindcss";) y agregas `@import '../styles/theme.css';`
+ * DESPUÉS de esas líneas, el import es inválido y el navegador lo ignora
+ * EN SILENCIO — ninguna var(--color-...) existe, y todo lo que dependa de
+ * ellas se ve roto (colores ausentes, contraste raro) sin ningún error en
+ * consola que lo delate.
+ *
+ * La forma robusta de usar esto, que evita el problema de raíz: copiar el
+ * contenido de abajo DIRECTO dentro de tu globals.css (en cualquier parte,
+ * el orden ya no importa porque no es un @import) en vez de importar este
+ * archivo por separado.
+ */
+
+:root {
+  --color-bg: #17140f;
+  --color-surface: #211c15;
+  --color-border: #3a3226;
+  --color-accent: #e3a008;
+  --color-accent-glow: rgba(227, 160, 8, 0.6);
+  --color-text: #f5efe2;
+  --color-text-muted: #a89a82;
+  --color-danger: #c7451c;
+}
+
+/* El fondo/color global nunca se aplicaba fuera de las tarjetas
+ * individuales — el <body> seguía con lo que Tailwind/Next.js trae por
+ * defecto (probablemente blanco), chocando visualmente con componentes
+ * pensados para un fondo oscuro. */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}

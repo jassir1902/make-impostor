@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: redis:7-alpine
+    # AOF (persistencia) + keyspace notifications de expiración, configurados
+    # a nivel de infraestructura como defensa adicional a la configuración
+    # en tiempo de ejecución que ya intenta `ensure_keyspace_notifications_enabled()`
+    # al arrancar el backend (ver 02_architecture.md, sección 4.2).
+    command: redis-server --appendonly yes --notify-keyspace-events Ex
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379
+      # Orígenes adicionales para CORS (ver main.py) — falta agregar aquí el
+      # dominio de Vercel cuando exista, separado por comas.
+      CORS_EXTRA_ORIGINS: ""
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
