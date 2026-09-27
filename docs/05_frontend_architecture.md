@@ -18,7 +18,7 @@ src/
       hooks/ useHostControls.ts
 
     game-turns/
-      components/ TurnScreen.tsx, WordInput.tsx, TurnTimer.tsx
+      components/ TurnScreen.tsx, WordInput.tsx, TurnTimer.tsx, WordAnnouncement.tsx
       hooks/ useTurnTimer.ts
 
     voting/
@@ -70,7 +70,9 @@ A diferencia de la conexión WebSocket, la creación y validación de salas se r
 
 El estado global se sincroniza a través de la tienda `useGameStore` usando **Zustand**, descartando `React Context` para evitar re-renders masivos por el reloj autoritativo.
 
-El campo `connectionStatus` (`'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'rejected'`) es alimentado exclusivamente por el callback `onStatusChange` de `RoomSocket`. Ningún componente lo actualiza directamente.
+El campo `connectionStatus` (`'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'rejected' | 'left'`) es alimentado exclusivamente por el callback `onStatusChange` de `RoomSocket`. Ningún componente lo actualiza directamente.
+
+`'left'` y `'rejected'` son ambos terminales, pero por motivos opuestos y no deben confundirse: `'rejected'` es una expulsión del servidor (código `>= 4000`), mientras que `'left'` es una salida deliberada del propio jugador — el servidor cierra con código `1000` únicamente después de haber procesado su `leave_room`. Ninguno de los dos reconecta.
 
 El store también guarda `myPlayerId` — el `player_id` propio, recibido en `joined_successfully` y fijado vía `onIdentityConfirmed` en `useRoomConnection`. Sin este campo ningún componente puede saber cuál entrada de `room.players` es "yo" (para mostrar "Tú", o para derivar si soy el Host comparando `room.players[myPlayerId]?.is_host`).
 
@@ -79,11 +81,11 @@ El store también guarda `myPlayerId` — el `player_id` propio, recibido en `jo
 La conexión por WebSocket se administra mediante el patrón **Servicio Singleton** con una clase pura (`RoomSocket`) que opera fuera del ciclo de vida de React.
 
 - **Evitar Conexiones Duplicadas:** Al estar referenciada por un hook, se evita que el _Strict Mode_ de React abra múltiples conexiones.
-- **Resiliencia Restringida (Inhibición de Bucles):** La clase cuenta con una estrategia de reconexión automática (Backoff Exponencial con techo de 30s). **Regla estricta:** Solo los cierres de bajo nivel del navegador (código `< 4000`, como el `1006` por caída de red) activan la reconexión. Si el socket se cierra con un código de aplicación del servidor (`code >= 4000`), la reconexión automática **se inhibe completamente** y se transiciona al estado terminal `'rejected'` (ver sección 5.1).
+- **Resiliencia Restringida (Inhibición de Bucles):** La clase cuenta con reconexión automática mediante _backoff_ exponencial: `min(1000 * 2 ** intentos, 15000)` ms, es decir, con **techo de 15 s**. **Regla estricta:** solo los cierres de bajo nivel del navegador (código `< 4000`, como el `1006` por caída de red) activan la reconexión. Si el socket se cierra con un código de aplicación del servidor (`code >= 4000`), la reconexión **se inhibe completamente** y se transiciona al estado terminal `'rejected'` (ver sección 5.1). El código `1000` tampoco reconecta, pero transiciona a `'left'` en vez de a `'rejected'` (ver sección 3).
 - **Cola de Mensajes con Invalidación Exhaustiva:** Si un jugador envía un mensaje durante una desconexión momentánea, la clase almacena el payload. Al reconectar:
   - `leave_room` siempre es seguro de reproducir.
   - `vote` y `send_word` se marcan con el `round_number`, `status` y **la longitud del arreglo `tied_players`** vigentes al encolar. Si al recibir la rehidratación cualquiera de estas tres variables cambió, el mensaje se descarta silenciosamente. Esto evita que un voto dirigido a un jugador eliminado se envíe ciegamente durante un desempate.
-- **Ciclo de Vida Explícito:** `RoomSocket` expone un método `reset()` para limpiar la cola y desvincular listeners si el jugador cambia de sala sin recargar la página.
+- **Ciclo de Vida Explícito:** la superficie pública de `RoomSocket` son tres métodos: `connect()`, `onMessage()` —que devuelve su propia función de baja— y `close()`. Cambiar de sala sin recargar la página no lo resuelve la clase por sí sola, sino el efecto de `useRoomConnection`, que en su _cleanup_ da de baja el listener, llama a `close()` y crea una instancia nueva; y en su arranque llama a `useGameStore.getState().resetStore()`. Esa llamada es imprescindible: el store de Zustand es un _singleton_ de módulo y sin resetearlo un `connectionStatus` como `'left'`, dejado por la sala anterior, sobreviviría al montaje de la nueva.
 
 ## 5. Handshake de Identidad y Reconexión
 
@@ -91,17 +93,24 @@ La conexión por WebSocket se administra mediante el patrón **Servicio Singleto
 
 - **En cada `onopen`**, envía automáticamente `join_room` con el `secret_token` almacenado.
 - **Al recibir `joined_successfully`**, intercepta el mensaje, persiste el token y notifica vía `onIdentityConfirmed`.
-- **El flush de la cola** se dispara únicamente **después** del callback `onIdentityConfirmed`, garantizando que ninguna acción encolada llegue al servidor antes que la identidad.
+- **El flush de la cola** no lo dispara `onIdentityConfirmed`, sino el **primer `room_update` que llega después** de él. La bandera `awaitingRehydrationFlush` se arma en el `onopen` y se consume en ese primer broadcast.
+
+  El matiz no es accidental. Esperar a la identidad garantizaría que ninguna acción encolada llegue antes que el `join_room`, pero no basta: la cola hay que **validarla contra estado fresco** (§4), y ese estado solo existe cuando llega el `RoomView` de rehidratación. Vaciarla antes obligaría a decidir qué reproducir a ciegas.
 
 ### 5.1 Mapeo de Códigos de Cierre en la UI (Estados Terminales)
 
 Cuando `RoomSocket` recibe un código de cierre `>= 4000`, transiciona el `connectionStatus` a `'rejected'` y expone el motivo en el store global para que la UI renderice la pantalla de error correspondiente:
 
-- **`4003 (Game In Progress)`:** Muestra "La partida ya ha comenzado" y redirige al inicio.
-- **`4004 (Room Not Found)`:** Muestra "La sala no existe o ha expirado" y redirige al inicio.
-- **`4006 (Room Full)`:** Muestra "La sala ha alcanzado el límite de 10 jugadores" y redirige al inicio.
+- **`4003 (Game In Progress)`:** Muestra "La partida ya ha comenzado".
+- **`4004 (Room Not Found)`:** Muestra "La sala no existe o ha expirado".
+- **`4006 (Room Full)`:** Muestra "La sala ha alcanzado el límite de 10 jugadores".
 - **`4009 (Session Duplicated)`:** Muestra "Sesión iniciada en otra pestaña/dispositivo. Reconecta para recuperar el control". (Requiere botón manual).
 - **`4029 (Too Many Requests)`:** Muestra "Desconexión por seguridad (Spam detectado)".
+
+**Ninguno de estos códigos navega solo.** Los cinco renderizan un mensaje con un
+botón «Volver al inicio»; la decisión de salir es del jugador. La única
+transición que sí navega automáticamente es `'left'`, porque ahí la salida ya
+fue una acción deliberada suya.
 
 ## 6. Contrato de Datos y Validación Estricta (Zod)
 
