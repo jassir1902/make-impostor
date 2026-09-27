@@ -4,6 +4,8 @@ Este documento define las prácticas de Integración Continua y Despliegue Conti
 
 ## 1. Topología de Infraestructura (Fase 1 - 4)
 
+📋 Planeado — **no hay nada desplegado**: ni VPS, ni dominio, ni Caddy. Lo único real es el `backend/docker-compose.yml` de desarrollo, con `api` y `redis` (ver §1.1).
+
 El entorno de producción reside en una única instancia virtual (VPS) de Oracle Cloud bajo la arquitectura ARM64, gestionada íntegramente mediante la filosofía de Infraestructura como Código (IaC) utilizando Docker Compose.
 
 ### 1.1 Orquestación de Servicios (Docker Compose)
@@ -78,6 +80,8 @@ son efímeros.
 
 ## 3. Convención de Commits (Semantic Commits)
 
+✅ Implementado — se aplica desde el primer commit del repositorio. `AGENTS.md` §5 añade que el asunto va en inglés y el cuerpo en español, y admite también `refactor`.
+
 El historial de Git debe ser autoexplicativo y legible por máquinas para posibles automatizaciones de versionado (SemVer). Todo commit debe seguir la convención:
 `<tipo>(<alcance>): <descripción breve>`
 
@@ -93,6 +97,8 @@ El historial de Git debe ser autoexplicativo y legible por máquinas para posibl
 _Ejemplo:_ `feat(socket): implementar rehidratación de estado en reconexión`
 
 ## 4. Pipeline de Integración y Despliegue (GitHub Actions)
+
+📋 Planeado — **no existe `.github/workflows/`**. Ningún PR se valida automáticamente; las pruebas se corren en local. Mientras esto siga así, la política de bloqueo por _status checks_ de `07` §5 no tiene quien la aplique.
 
 La automatización de la calidad y la entrega se delega a GitHub Actions, dividido en flujos de trabajo principales:
 
@@ -126,6 +132,8 @@ La automatización de la calidad y la entrega se delega a GitHub Actions, dividi
 Ante un despliegue defectuoso en `main`, la reversión no requiere ejecutar todo el pipeline de CI/CD de nuevo. Se accede al VPS y se edita el `docker-compose.yml` para apuntar el tag de la imagen al SHA del commit anterior y estable (ej. `ghcr.io/.../api:a1b2c3d`), ejecutando nuevamente `docker compose up -d`.
 
 ## 5. Estrategia de Monitoreo
+
+📋 Planeado — no hay Uptime Kuma ni alertas. El endpoint `/api/health` sí existe y responde.
 
 Para garantizar la visibilidad operativa sin incurrir en costos de infraestructura adicionales en la Fase 1, se implementará **Uptime Kuma** (desplegado como un contenedor de bajo consumo adicional en el VPS).
 

@@ -4,9 +4,13 @@ Este documento establece el marco estratégico, las herramientas oficiales y la 
 
 ## 1. El Paradigma de Calidad: Pruebas como Código (Test-as-Code)
 
+✅ Adoptado
+
 El proyecto rechaza la burocracia de los casos de prueba manuales documentados en plantillas externas. Se adopta la filosofía _Test-as-Code_: **el código de la prueba automatizada constituye su propia documentación técnica**. La suite de pruebas debe ser autoexplicativa, reproducible en cualquier entorno local y ejecutada de forma mandatoria en el pipeline de Integración Continua (CI).
 
 ## 2. La Pirámide de Pruebas del Proyecto
+
+🚧 Parcial — **solo existe la base**. §2.1 (unitarias de `game_service`) ✅, más pruebas de `websockets.py` con dobles de Redis en `tests/unit/api/`. §2.2 (integración multi-instancia y Redis Cluster), §2.3 (E2E con Playwright) y §2.4 (carga con k6) 📋 Planeado: `tests/integration/` y `tests/e2e/` están vacías.
 
 Para optimizar el tiempo de cómputo en el CI y maximizar la confianza en los despliegues, la estrategia se distribuye bajo una estructura piramidal ampliada:
 
@@ -34,6 +38,8 @@ Para optimizar el tiempo de cómputo en el CI y maximizar la confianza en los de
 
 ## 3. Stack Tecnológico de QA
 
+🚧 Parcial — solo `pytest` está en uso. Playwright, k6 y `mypy` no están instalados ni configurados.
+
 | Capa / Componente       | Herramienta Oficial | Razón Estratégica                                                                                                                                  |
 | :---------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Backend Framework**   | `pytest`            | Soporta nativamente pruebas asíncronas y orquestación multi-instancia en fixtures (`pytest-asyncio`).                                              |
@@ -42,6 +48,8 @@ Para optimizar el tiempo de cómputo en el CI y maximizar la confianza en los de
 | **Validación de Tipos** | `mypy`              | Análisis estático estricto.                                                                                                                        |
 
 ## 4. Escenarios Críticos de Prueba Automática (Foco de Inversión)
+
+🚧 Parcial — §4.1 está cubierto **parcialmente**: hay pruebas de la carrera turno-vs-cerrojo, pero contra un doble de Redis, no forzando la expiración real de la clave. §4.2, §4.3 y §4.4 📋 Planeado: requieren Playwright.
 
 ### 4.1 Pruebas de Concurrencia y Competencia por Turno (Backend)
 
@@ -64,6 +72,8 @@ Para optimizar el tiempo de cómputo en el CI y maximizar la confianza en los de
 - **Aserción:** El servidor debe cerrar el socket con el código `4029`. Adicionalmente, verificar un "caso de uso rápido" (ej. votar e inmediatamente enviar un emoji en un futuro chat) para asegurar que el uso normal no detone falsos positivos.
 
 ## 5. Criterios de Aceptación y Políticas de Cobertura (Políticas de PR)
+
+📋 Planeado — no hay medición de cobertura ni CI que bloquee. Ver `06` §4.
 
 El pipeline en GitHub Actions aplicará reglas combinadas (Volumen + Riesgo):
 

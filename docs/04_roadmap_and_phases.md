@@ -8,7 +8,14 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 
 **Objetivo:** Establecer un entorno de producción contenerizado definitivo (Docker/VPS) y desplegar un Producto Mínimo Viable (MVP) completamente jugable con temáticas predefinidas y sincronización en tiempo real.
 
-> **Estado de implementación:** el código de backend (modelos, servicio de juego, WebSocket con cerrojo distribuido, listener de timeouts, las seis acciones de cliente) y las cuatro pantallas de frontend (`room-lobby`, `game-turns`, `voting`, `reveal`) más las dos páginas de Next.js (`page.tsx`, `room/[roomId]/page.tsx`) ya están escritos y compilando/probando en verde (pytest en el backend, `tsc --noEmit` en el frontend). Lo que sigue pendiente de esta fase es la parte de **DevOps e Infraestructura** de abajo (VPS, Docker Compose, Caddy, CI/CD) y una pasada de humo real jugando una partida completa con el backend y el frontend corriendo juntos — algo que ninguna prueba automatizada actual cubre todavía (ver `07_testing_and_qa_strategy.md`, sección 2.3, pendiente hasta este punto).
+🚧 **Parcial.** El estado real y detallado vive en `00_current_status.md`, que es el
+documento que se mantiene al día; lo de aquí es solo el resumen.
+
+> **Estado de implementación:** el código de backend (modelos, servicio de juego, WebSocket con cerrojo distribuido, listener de timeouts, las seis acciones de cliente) y las cuatro pantallas de frontend (`room-lobby`, `game-turns`, `voting`, `reveal`) más las dos páginas de Next.js (`page.tsx`, `room/[roomId]/page.tsx`) están escritos y en verde (pytest en el backend, `tsc --noEmit` en el frontend).
+>
+> **«Escrito y en verde» no es «funcional».** Una auditoría posterior encontró defectos que las pruebas no cubrían, dos de los cuales todavía cuelgan una partida de forma permanente: la fase de votación no tiene reloj (hallazgo 4) y `leave_room` durante la votación no reevalúa el umbral de votos (hallazgo 5). El catálogo completo está en `00_current_status.md`.
+>
+> Pendiente de esta fase, además: todo el bloque de **DevOps e Infraestructura** de abajo (VPS, Caddy, CI/CD) y una pasada de humo real jugando una partida completa con backend y frontend corriendo juntos — algo que ninguna prueba automatizada cubre todavía (ver `07_testing_and_qa_strategy.md` §2.3).
 
 ### DevOps e Infraestructura
 
@@ -36,6 +43,8 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 
 ## Fase 2: Personalización de Reglas e Historial
 
+📋 Planeado (Fase 2)
+
 **Objetivo:** Otorgar control granular al anfitrión sobre las mecánicas de la ronda y proveer un registro detallado de las jugadas para incentivar la interacción social post-partida.
 
 ### Backend (FastAPI)
@@ -53,6 +62,8 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 
 ## Fase 3: Automatización de Contenido por Inteligencia Artificial
 
+📋 Planeado (Fase 3)
+
 **Objetivo:** Mitigar el desgaste del catálogo de juego integrando generación automática de temáticas y palabras a través de un modelo de lenguaje.
 
 ### Backend (FastAPI)
@@ -68,6 +79,8 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 ---
 
 ## Fase 4: Persistencia a Largo Plazo y Cuentas de Usuario
+
+📋 Planeado (Fase 4)
 
 **Objetivo:** Transformar la aplicación de un juego de sesión efímera a una plataforma persistente con cuentas de usuario e historiales.
 
@@ -85,6 +98,8 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 
 ## Fase 5: Escalamiento Horizontal Pragmático
 
+📋 Planeado (Fase 5)
+
 **Objetivo:** Adaptar el backend de FastAPI para soportar múltiples instancias concurrentes, eliminando dependencias de un único proceso.
 
 ### Backend / Arquitectura Distribuida
@@ -96,6 +111,8 @@ Este documento establece el plan de ejecución iterativo para la construcción y
 ---
 
 ## Fase 6: Visión a Futuro (North Star Architecture)
+
+📋 Planeado (Fase 6)
 
 **Objetivo:** Definir la topología de infraestructura empresarial ideal ante escenarios de alta concurrencia masiva y tolerancia total a fallos. _(Nota: Esta fase está fuera del alcance del proyecto actual y se detalla exclusivamente como referencia técnica futura)._
 

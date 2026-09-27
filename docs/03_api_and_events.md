@@ -4,6 +4,8 @@ Este documento detalla las interfaces de comunicación entre el frontend (Next.j
 
 ## 1. Endpoints REST (HTTP)
 
+🚧 Parcial — §1.0, §1.1, §1.2 y §1.4 ✅. §1.3 (generación por IA) 📋 Planeado (Fase 3): hoy responde `501`.
+
 Estas rutas se utilizan para consultas previas a la conexión del juego o interacciones puntuales.
 
 ### 1.0 Crear una nueva sala
@@ -49,6 +51,8 @@ Ruta consumida por el monitor de infraestructura (Uptime Kuma, ver `06_devops_an
 
 ## 2. Conexión WebSocket
 
+✅ Implementado
+
 - **Ruta base:** `wss://<dominio-backend>/ws/room/{room_id}`
 - **Comportamiento general:** Todos los mensajes bidireccionales (Cliente a Servidor y Servidor a Cliente) son un JSON estricto estructurado obligatoriamente con las llaves `action` y `payload`.
 
@@ -67,6 +71,8 @@ Si el servidor recibe un evento `join_room` con un `secret_token` que ya posee u
 ---
 
 ## 3. Eventos del Cliente al Servidor (Client Messages)
+
+✅ Implementado — las seis acciones existen y se validan.
 
 ### 3.1 Unirse a la sala (`join_room`)
 
@@ -165,6 +171,8 @@ El frontend tiene la obligación contractual de tratar cualquier código de cier
 ---
 
 ## 4. Eventos del Servidor al Cliente (Server Messages)
+
+🚧 Parcial — §4.1 ✅. §4.2: el «enum de lista cerrada» **está incompleto**, faltan `SERVER_BUSY` e `INVALID_FORMAT`, que el backend sí emite y el cliente descarta (hallazgo 6). §4.3: la revelación final ✅, pero la «Protección del Garbage Collector» describe un TTL de inactividad y una gracia de 15 minutos que **no existen** (hallazgo 2), y la nota de estadísticas persistentes es 📋 Fase 4.
 
 ### 4.1 Broadcast de Estado Personalizado (room_update)
 
