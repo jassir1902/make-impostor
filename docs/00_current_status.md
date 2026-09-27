@@ -68,11 +68,30 @@ Hallazgos de la auditoría del 2026-09-04. Los dos primeros ya se arreglaron.
 
 ### En la documentación
 
-- `06` §5 dice que el health check es `/api/rooms/health`; el real es
-  `/api/health`, y `03` §1.4 lo dice bien. Dos documentos se contradicen.
+Once contradicciones verificadas contra el código, catalogadas en MI-3.
+
+Corregidas:
+
+- ✅ `06` §5 daba `/api/rooms/health` como health check; el real es `/api/health`.
+- ✅ `06` §1.1 daba por existente un servicio `proxy` (Caddy) que no está en el compose.
+- ✅ `05` §3 listaba 6 estados de `connectionStatus`; son 7 (faltaba `'left'`).
+- ✅ `05` §4 daba el techo del *backoff* en 30 s; son 15 s.
+- ✅ `05` §4 documentaba un método `reset()` de `RoomSocket` que no existe.
+- ✅ `05` §1 omitía `WordAnnouncement.tsx` del listado de componentes.
+- ✅ `05` §5 decía que la cola se vacía tras `onIdentityConfirmed`; en realidad
+  espera al primer `room_update`, porque hace falta estado fresco para validarla.
+- ✅ `05` §5.1 decía que los códigos 4003/4004/4006 «redirigen al inicio». No
+  navegan solos: muestran un botón. La única que navega sola es `'left'`.
+
+Pendientes:
+
+- `02` describe Redis Streams como el mecanismo vivo entre réplicas, en cuatro
+  secciones. No hay un solo `XADD` ni `XREAD` en el código.
 - `03` §4.3 describe un TTL de salas y una gracia de 15 minutos que no existen.
-- `03` §4.2 declara un «enum de lista cerrada» al que le faltan dos códigos.
-- `01` §5 no define qué pasa si un jugador vivo no vota.
+- `07` §2.2–2.4 describe una pirámide de pruebas de la que solo existe la base.
+- `03` §4.2 declara un «enum de lista cerrada» al que le faltan dos códigos
+  (va con el hallazgo 6, porque arreglarlo exige tocar también el esquema Zod).
+- `01` §5 no define qué pasa si un jugador vivo no vota (va con el hallazgo 4).
 
 ## Qué no existe todavía
 

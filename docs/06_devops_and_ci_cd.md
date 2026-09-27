@@ -8,11 +8,14 @@ El entorno de producción reside en una única instancia virtual (VPS) de Oracle
 
 ### 1.1 Orquestación de Servicios (Docker Compose)
 
-El archivo `docker-compose.yml` de producción define los siguientes servicios aislados en una red interna virtual:
+El `backend/docker-compose.yml` **actual** define dos servicios en una red interna virtual:
 
-- **`api` (FastAPI):** Construido a partir de un `Dockerfile` Multi-Etapa optimizado para `linux/arm64`. La imagen de producción excluye dependencias de desarrollo (`pytest`, `black`) para minimizar la superficie de ataque y el peso del contenedor.
-- **`redis`:** Contenedor oficial de Redis (Alpine), ejecutado con persistencia activada (`--appendonly yes --appendfsync everysec`) y un volumen montado en el _host_ para preservar el estado ante reinicios.
-- **`proxy` (Caddy):** Servidor web expuesto a internet (Puertos 80 y 443).
+- ✅ **`api` (FastAPI):** Construido a partir de un `Dockerfile` Multi-Etapa. La imagen de producción excluye dependencias de desarrollo (`pytest`, `black`) para minimizar la superficie de ataque y el peso del contenedor. La optimización explícita para `linux/arm64` está pendiente hasta que exista el VPS.
+- ✅ **`redis`:** Contenedor oficial de Redis (Alpine), ejecutado con `--appendonly yes` y `--notify-keyspace-events Ex`, con un volumen para preservar el estado ante reinicios.
+
+📋 **Planeado — no existe todavía:**
+
+- **`proxy` (Caddy):** Servidor web expuesto a internet (puertos 80 y 443). El compose actual publica `api` directamente en el `8000`, sin proxy inverso ni TLS. Se añadirá al aprovisionar el VPS, junto con lo descrito en §1.2.
 
 **Nota de Compatibilidad de Esquemas:** Dado que Redis preserva el estado, si un despliegue introduce un cambio que rompe la retrocompatibilidad del modelo Pydantic `GameRoom` (ej. renombrar un campo obligatorio), el nuevo contenedor fallará al intentar deserializar las partidas en curso. Los cambios destructivos de esquema deben manejarse haciendo los campos opcionales inicialmente, o programando el despliegue en ventanas de mantenimiento sin partidas activas.
 
@@ -126,5 +129,5 @@ Ante un despliegue defectuoso en `main`, la reversión no requiere ejecutar todo
 
 Para garantizar la visibilidad operativa sin incurrir en costos de infraestructura adicionales en la Fase 1, se implementará **Uptime Kuma** (desplegado como un contenedor de bajo consumo adicional en el VPS).
 
-- **Verificación de Salud:** Uptime Kuma enviará pulsos (_pings_) periódicos al endpoint `/api/rooms/health` para validar que FastAPI y Redis están comunicándose correctamente.
+- **Verificación de Salud:** Uptime Kuma enviará pulsos (_pings_) periódicos al endpoint `/api/health` para validar que FastAPI y Redis están comunicándose correctamente. Es la misma ruta que documenta `03_api_and_events.md` §1.4 y la que implementa `routes.py`.
 - **Alertas:** En caso de que el backend o el proxy inverso rechacen la conexión, se disparará una alerta automatizada a través de un _webhook_ (ej. hacia un bot de Telegram o un canal de Discord privado) para asegurar una respuesta proactiva ante caídas.
