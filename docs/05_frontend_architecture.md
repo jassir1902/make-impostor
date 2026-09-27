@@ -2,6 +2,12 @@
 
 Este documento detalla la estructura de directorios, la estrategia de gestión de estado y el ciclo de vida de la conexión en tiempo real dentro de la aplicación web construida con Next.js.
 
+✅ **Implementado.** Todo lo descrito aquí existe en el código y se corresponde
+con él, con una excepción conocida: el enum de códigos de error que valida
+`ServerErrorMessageSchema` (§6) está incompleto — le faltan `SERVER_BUSY` e
+`INVALID_FORMAT`, que el backend sí emite, así que esos mensajes se descartan en
+silencio y el usuario ve un botón que no responde (hallazgo 6).
+
 ## 1. Estructura de Directorios (Feature-Sliced Design)
 
 Para garantizar la mantenibilidad y escalabilidad del proyecto, el código se organiza por "dominios de negocio" (features) en lugar de por tipos de archivos técnicos:

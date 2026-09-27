@@ -4,6 +4,8 @@ Este documento describe la arquitectura técnica del Juego del Impostor, detalla
 
 ## 1. Visión General
 
+✅ Implementado
+
 El proyecto sigue una arquitectura distribuida Cliente-Servidor-Caché:
 
 - **Frontend (Cliente):** Aplicación web estática construida con Next.js y React, encargada exclusivamente de la renderización reactiva de la interfaz de usuario y la transmisión de eventos al servidor a través de WebSockets.
@@ -11,6 +13,8 @@ El proyecto sigue una arquitectura distribuida Cliente-Servidor-Caché:
 - **Capa de Datos (Redis):** Actúa como la Única Fuente de Verdad (SSOT) del juego. Administra el estado estructurado de las salas, el bus de eventos en tiempo real y el control de concurrencia.
 
 ## 2. Estructura de Directorios del Backend
+
+🚧 Parcial — la estructura es la real, pero `redis_client.py` **no** administra _streams_: no hay ningún `XADD` ni `XREAD` en el código (ver §4.1).
 
 El backend adopta un patrón de diseño guiado por el dominio (DDD - Domain-Driven Design) adaptado para una arquitectura distribuida:
 
@@ -26,6 +30,8 @@ El backend adopta un patrón de diseño guiado por el dominio (DDD - Domain-Driv
   - `game_service.py`: Lógica transaccional que lee desde Redis, calcula nuevos estados (empates, victorias, avances de turno) y reescribe la entidad a la base de datos aplicando _fencing tokens_.
 
 ## 3. Gestión del Estado y Persistencia (Redis)
+
+🚧 Parcial — §3.1: la clave `room:{ABCD}:stream` está declarada pero **nunca se crea** (ver §4.1). §3.2: la creación atómica y el AOF ✅, pero **el ciclo de vida está a medias**: las salas nacen y no mueren nunca — no hay TTL ni recolector (hallazgo 2). §3.3 (migración de Host por Sorted Set) ✅.
 
 Todo el estado en vivo de las partidas reside exclusivamente en Redis, erradicando el uso de diccionarios en la memoria RAM de Python. Esto garantiza la intercambiabilidad de los _workers_ de FastAPI.
 
@@ -52,6 +58,8 @@ Para resolverlo, `room:{ABCD}:join_order` es un **Sorted Set** de Redis donde ca
 
 ## 4. Comunicación en Tiempo Real y Concurrencia
 
+🚧 Parcial — §4.1 (Redis Streams) 📋 Planeado (Fase 5): **no existe**. Hoy `broadcast_room_view` solo alcanza los sockets de la instancia local, lo cual es correcto porque se corre un único worker. §4.2 (TTL y _keyspace notifications_) ✅. §4.3 (cerrojo con fencing) ✅ — ver `adr/0001`.
+
 ### 4.1 Bus de Eventos Bidireccional (Redis Streams)
 
 La comunicación entre distintas réplicas de FastAPI se realiza mediante **Redis Streams**.
@@ -74,6 +82,8 @@ Para prevenir condiciones de carrera (múltiples _workers_ intentando resolver u
 
 ## 5. Resiliencia, Reconexión y Rehidratación
 
+🚧 Parcial — la rehidratación funciona **dentro de una instancia**: el token persistente, el _snapshot_ desde Redis y la reconexión sin estado local están implementados. La independencia real de _sticky sessions_ depende del bus de eventos de §4.1, que es de la Fase 5.
+
 El sistema está diseñado para tolerar caídas de red del cliente, actualizaciones de página y cambios de instancia de backend sin pérdida de progreso.
 
 ### 5.1 Separación de Identidad
@@ -92,6 +102,8 @@ El sistema no requiere _Sticky Sessions_ (afinidad de sesión TCP) a nivel de ba
 
 ## 6. Política de Seguridad: Autorización por Estados
 
+🚧 Parcial — las tres barreras funcionan sobre el WebSocket. La superficie REST no estaba contemplada y filtra el vocabulario completo de cada temática (hallazgo 3). Ver `08_security.md` §4.1.
+
 El acceso y modificación de datos se gobierna por tres barreras:
 
 1.  **Validación Contractual:** Pydantic rechaza esquemas malformados en los _payloads_ entrantes.
@@ -102,6 +114,8 @@ El acceso y modificación de datos se gobierna por tres barreras:
 3.  **Exposición Condicional del Rol:** `broadcast_room_view` omite el campo `role` de cada jugador en `players` mientras `status` sea `waiting`, `playing` o `voting` — es la protección central de Zero-Trust que evita que el impostor se delate por el inspector de red. Esa misma función lo **incluye** explícitamente en cuanto `status == "revealing"`: en ese punto la partida ya terminó y ocultarlo no protege nada — al contrario, es el momento en que el juego debe revelar quién era quién (ver `03_api_and_events.md`, sección 4.3).
 
 ## 7. Referencia de Arquitectura Objetivo (North Star)
+
+📋 Planeado (Fase 6) — fuera del alcance del proyecto base.
 
 _Este apartado describe la evolución técnica planeada fuera del alcance del proyecto base._
 

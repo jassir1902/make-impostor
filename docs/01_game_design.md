@@ -8,12 +8,16 @@ El Juego del Impostor es una experiencia multijugador de deducción social por t
 
 ## 2. Roles del Juego
 
+✅ Implementado
+
 | Rol          | Objetivo                                                 | Información Disponible                                                      |
 | :----------- | :------------------------------------------------------- | :-------------------------------------------------------------------------- |
 | **Inocente** | Descubrir y eliminar a los impostores mediante votación. | Conoce la temática general y la palabra exacta de la ronda.                 |
 | **Impostor** | Sobrevivir hasta igualar en número a los inocentes.      | Solo conoce la temática general y una pista opcional. No conoce la palabra. |
 
 ## 3. Parámetros de la Sala y Configuración (Host)
+
+🚧 Parcial — los toggles de pistas y de categoría funcionan; **`anonymous_voting` se acepta, se persiste y nunca se lee**: `RoomView` no expone `votes` en ningún modo, así que la opción no hace nada (hallazgo 8).
 
 El primer jugador en crear/entrar a una sala es designado automáticamente como el Anfitrión (_Host_). El anfitrión tiene el control del inicio y la configuración de la partida.
 
@@ -26,6 +30,8 @@ El primer jugador en crear/entrar a una sala es designado automáticamente como 
 
 ## 4. Matemáticas y Condiciones de Victoria
 
+🚧 Parcial — la validación y las condiciones de victoria funcionan, pero `start_game` cuenta `len(room.players)` incluyendo desconectados, cuando esta sección dice «jugadores vivos» (hallazgo 12).
+
 El anfitrión (Host) tiene la libertad de elegir la cantidad exacta de impostores para la ronda a través del menú de configuración. Sin embargo, para preservar el balance del juego, el servidor es la autoridad absoluta y no confía ciegamente en el valor enviado por el cliente.
 
 El servidor valida estrictamente que la cantidad elegida por el Host se encuentre dentro de un rango permitido (Mínimo 1, y un Máximo calculado dinámicamente). La fórmula aplicada para el límite máximo es: floor((N - 1) / 2) donde N es el número total de jugadores vivos en la sala al momento de iniciar la ronda. Si el Host envía un número fuera de este rango, el servidor rechaza la petición e impide el inicio de la partida.
@@ -36,6 +42,8 @@ El servidor valida estrictamente que la cantidad elegida por el Host se encuentr
 - **Victoria del Impostor:** El juego termina inmediatamente a favor de los impostores si la cantidad de impostores vivos es igual o mayor a la cantidad de inocentes vivos.
 
 ## 5. Dinámica de Turnos y Rondas
+
+🚧 Parcial — la fase de escritura y las reglas de empate funcionan. **La fase de votación no tiene reloj**: se resuelve solo cuando todos los vivos han votado, así que un jugador que se desconecta sin salir la congela para siempre (hallazgo 4). Esta sección tampoco define qué debería pasar en ese caso.
 
 El juego se divide en un ciclo de Rondas. Cada ronda consta de una fase de escritura y una fase de votación.
 
@@ -59,11 +67,15 @@ El juego se divide en un ciclo de Rondas. Cada ronda consta de una fase de escri
 
 ## 6. Abandono de Partida (Desconexiones)
 
+✅ Implementado
+
 - **Recargas de Página (Refresh):** El sistema utiliza un ID persistente guardado en el navegador de cada jugador. Si un jugador recarga la página o sufre un corte de red temporal, mantiene su lugar, su rol y su estado vital.
 - **Salida Definitiva:** Si un jugador utiliza el botón explícito de "Salir de la sala", es considerado como una eliminación inmediata del juego. El servidor evaluará las condiciones de victoria de forma instantánea. Si era su turno, este se salta automáticamente.
 - **Migración de Anfitrión (Host Migration):** Si el jugador que posee el rol de Anfitrión abandona la sala definitivamente, el servidor detectará la vacante y transferirá automáticamente los privilegios de Host al jugador más antiguo que siga conectado en la sala, evitando que la partida quede "huérfana" o bloqueada. El orden de antigüedad se determina por el orden real de ingreso a la sala, no por la vista local de conexiones de una única instancia de backend (ver `02_architecture.md`, sección 3.3).
 
 ## 7. Sistema de Puntuación y Clasificación
+
+🚧 Parcial — §7.1 (puntaje efímero de sala) ✅. §7.2 (estadísticas persistentes de perfil) 📋 Planeado (Fase 4): no hay Supabase ni cuentas de usuario.
 
 El juego maneja dos sistemas de puntuación con propósitos y ciclos de vida distintos: un **puntaje efímero por sala** (`score`) que impulsa la competitividad dentro de una misma sesión de juego, y **estadísticas persistentes de perfil** que sobreviven entre partidas, atadas a una cuenta de usuario.
 
@@ -92,6 +104,8 @@ Independientemente del `score` de una partida específica, la cuenta de un jugad
 - No se persiste el `score` numérico de la sala, ni una "tasa de aciertos" ni ninguna otra métrica derivada — solo el conteo de victorias por rol. Cualquier estadística adicional de perfil que se quiera agregar en el futuro debe declararse explícitamente aquí antes de implementarse, para evitar que el esquema de Supabase y este documento diverjan.
 
 ## 8. Sistema de Historial (Log de Partida y Temáticas)
+
+🚧 Parcial — el `RoundLog` y el debate post-partida ✅. La prevención de repetición se apoya en `Topic.id`, que es un `uuid4()` regenerado en cada arranque del proceso: tras un reinicio el filtro apunta a ids muertos y deja de funcionar en silencio (hallazgo 7).
 
 ### Prevención de Repetición
 
